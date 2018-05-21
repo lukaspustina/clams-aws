@@ -1,0 +1,34 @@
+[package]
+name = "clams-aws"
+version = "0.0.1"
+authors = ["Lukas Pustina <lukas@pustina.net>"]
+description = "Clams that help to build shells for AWS"
+repository = "https://github.com/lukaspustina/clams-aws.git"
+readme = "README.md"
+license = "MIT"
+keywords = ["shell", "cli", "aws"]
+include = [
+  "README.md",
+  "LICENSE",
+  "**/*.rs",
+  "Cargo.toml",
+]
+
+[badges]
+travis-ci = { repository = "lukaspustina/clams-aws", branch = "master" }
+codecov = { repository = "lukaspustina/clams-aws", branch = "master", service = "github" }
+
+[dependencies]
+clams = "^0.0.9"
+error-chain = "^0.11"
+futures = "0.1"
+log = "^0.4"
+rusoto_core = "0.32.0"
+rusoto_s3 = "0.32.0"
+rusoto_sts = "0.32.0"
+tokio-core = "0.1"
+
+[dev-dependencies]
+quickcheck = "^0.6"
+spectral = "^0.6"
+
