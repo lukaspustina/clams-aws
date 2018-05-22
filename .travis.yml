@@ -1,0 +1,80 @@
+language: rust
+env:
+  global:
+  - CRATE_NAME=clams-aws
+  - secure: Dstpo8wuVphUKSQ9kgUjL2cxJgO5hAGF8RMuOnyliYreWEttRcvCrnHYObP0073L3L+qEa891IiUHdLxGY7RPutHDzvS11AdQDIH/cq5PPQkmtrgptl+J6kYbw7B/OS7xzk91s7lwZcuFySBaR7oG3KyFq/VNUC4GNXzq9QbRg0Mr8tBtuufjaLISwChebX7k3V95TFkmpb8iM7Cvy9rMfwxDoZ6lZ5zLYViwbv6N53vhWami7wnM6TeCN46jJnGVpQiwdTya7Bp2IEqERxYw9kLeRqkuRdBkWWCnJgFYpHPFrts15Drcn3F8vq689lWMbrZUfJ8Yxfhe1/aQyT4ITw+Tej+CcgBcyTxKkvnCGR9QnQ0U4q9ztedTQRa2nbbDKazvHinpWf0tpquqe/1AZ1ZQrHpPd8C0Op2sha3Wz0nhzCOQm5ReCGRD6YEz04DdZkWpbBGsl4NcVMNfZXy9QutQF7BJeDxbNS4hh3kvrhD0K6+Fb1IYY6K4HGCmYnQqzs/kPLeJnCsUejc6d3VHWjBcaBjMIQ7OTlvZVtjFaX0S1mcqjBQm8CkbmFX+7nuawitynqqt25cR6WPM3RqweFlzihefTIp1I6o0hCK4Axlt3BnxizJjgty94+FkYaZtTv57MCPbA3n+AM63PLKy+Ti7fzmlmDQzjJx6Fj81yo=
+  - secure: rSqlZFQPzSYcoSGWMTQIGRy/SiKfkHfktg+eXVeCSQgmY7Z0rflCTHYQwMIKgWF0fvUUKFP32YcGS7Eo7YBsZNABN5LOt0yE6m/PVSTa/4tyloiQzfp10H+/ENYCaMpB1hM+B6HTRqa5lxpvuzfecznDX1KbvZ1Y0R6nMuILWRvaW83loj0RLexd3eN/FOiTHlqtLOHJhlzwuvkw2oFXMDL/iEqCgRkmYs5FQJWelVtdUXkNMvomwZ5nPbeLkCZQoErt4LQXlEDxSjetB4FJyvbo43bZ8Z9R9beZPv8JLZOJ4m0jFf1eOYG6oqd7Mu+zQ+PUjAHMhZVGz48tFOc/xpRgFt187i3VmLY5s/8vrBYO/VkPkOYjL0bnMGKsb1T0a8lDwwEgIBx7qAwpeRY85YfsInMOD/BdbUpqZX3ukjZgBsWlUN7rWiFWRGwA8GK7LFR1nzeIk+ORnj3KU2hMGILzXL+2gJvPRg+4rE+WhbJyKf93LEWOpkmNE8ZtPy48GGW1iHcJMXMkmNKHgqkw0nvT3EWFLwwFJ/33lzQnyYofcYx4mLOqTol+751QXNMRvn++XV3T8ApoDzArhof3+17lJsou+zFE0GEUMVKKMVeRjD/7GhaReAkHWsv/+qyA0U01e0SvfDRaJPnc2o3OUT2+hwmsVB/h3fomnatzrvc=
+matrix:
+  fast_finish: true
+  include:
+  - env: TARGET=x86_64-unknown-linux-gnu DEPLOY_DEB=1 DEPLOY_GITHUB=1 DEPLOY_ARCH=amd64
+    rust: 1.26.0
+  - env: TARGET=x86_64-apple-darwin DEPLOY_GITHUB=1
+    rust: 1.26.0
+    os: osx
+  - env: TARGET=x86_64-unknown-linux-gnu CODECOV=1 RUSTFLAGS="-C link-dead-code"
+    rust: stable
+  - env: TARGET=x86_64-apple-darwin
+    rust: stable
+    os: osx
+  - env: TARGET=x86_64-unknown-linux-gnu
+    rust: beta
+  - env: TARGET=x86_64-apple-darwin
+    rust: beta
+    os: osx
+  - env: TARGET=x86_64-unknown-linux-gnu
+    rust: nightly
+  - env: TARGET=x86_64-apple-darwin
+    rust: nightly
+    os: osx
+  allow_failures:
+  - rust: beta
+  - rust: nightly
+sudo: required
+addons:
+  apt:
+    packages:
+    - libcurl4-openssl-dev
+    - libelf-dev
+    - libdw-dev
+    - cmake
+    - gcc
+    - binutils-dev
+    - libiberty-dev
+script:
+  - cargo build --verbose --all
+  - cargo test --verbose --all
+  - cargo test --verbose --all -- --ignored
+after_success: |
+  echo "Running integration tests" && (cd tests; make) && echo "Integration tests finished"
+  if [[ "$TRAVIS_OS_NAME" == "linux" && "$CODECOV" ]]; then
+    wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
+    tar xzf master.tar.gz &&
+    cd kcov-master &&
+    mkdir build &&
+    cd build &&
+    cmake .. &&
+    make &&
+    make install DESTDIR=../../kcov-build &&
+    cd ../.. &&
+    rm -rf kcov-master &&
+    for file in target/debug/ceres-*[^\.d] target/debug/it_*[^\.d]; do mkdir -p "target/cov/$(basename $file)"; ./kcov-build/usr/local/bin/kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
+    bash <(curl -s https://codecov.io/bash) &&
+    echo "Uploaded code coverage."
+  fi
+  if [[ "$TRAVIS_TAG" && ( "$DEPLOY_DEB" || "DEPLOY_GITHUB" ) ]]; then
+    cargo build --release &&
+    cp "target/release/$CRATE_NAME" "target/release/$CRATE_NAME-$TRAVIS_TAG-$TARGET" &&
+    gzip "target/release/$CRATE_NAME-$TRAVIS_TAG-$TARGET" &&
+    ls -l target/release/ &&
+    echo "Built Release Binary."
+  fi
+  if [[ "$DEPLOY_DEB" && "$DEPLOY_ARCH" && "$TRAVIS_TAG" ]]; then
+    cd distribution/deb/ &&
+    SRC_DIR=../../ BIN_DIR=../../target/release ARCH=$DEPLOY_ARCH VERSION=$TRAVIS_TAG TAG=$TRAVIS_TAG DIST=trusty make package &&
+    cd ../.. &&
+    echo "Built Debian Package."
+  fi
+before_deploy: |
+  echo "Running before each single deployment..."
+  echo "Run before each single deployment."
